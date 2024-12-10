@@ -869,7 +869,9 @@ class Builder:
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
-                    text=True
+                    check=False,
+                    text=True,
+                    shell=True
                 )
                 
                 # Update test result
@@ -882,7 +884,7 @@ class Builder:
                                 
             except Exception as e:
                 print(f"[{i:{counter_width}d}/{len(self.feature_tests)}]  {test.variable:<{varname_width}} ... failed")
-                print(f"Error: {e}")
+                print(f"Subprocess Error: {e}")
                 test.result = False
                 test.duration = time.time() - test_start_time
                 n_failed += 1
