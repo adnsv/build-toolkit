@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "build-toolkit"
+version = "0.1.0"
+description = "A Python toolkit for building C/C++ static libraries with minimal configuration"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Alex Denisov", email = "alex.a.denisov@gmail.com" }
+]
+keywords = ["build", "c++", "compiler", "toolchain", "parallel"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "typing-extensions>=4.0.0",
+    "pathlib>=1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "isort>=5.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --cov=build_toolkit"
+testpaths = ["tests"]
+
+[project.urls]
+Repository = "https://github.com/adnsv/build-toolkit"

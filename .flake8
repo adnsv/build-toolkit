@@ -1,0 +1,35 @@
+[flake8]
+max-line-length = 100
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.egg-info
+
+# Ignore some common warnings
+ignore =
+    # Line break before binary operator (conflicts with black)
+    W503,
+    # Line break after binary operator (conflicts with black)
+    W504,
+    # Missing docstring in public module
+    D100,
+    # Missing docstring in public class
+    D101,
+    # Missing docstring in public method
+    D102,
+    # Missing docstring in public function
+    D103
+
+# Additional plugins
+extend-ignore =
+    # Ignore flake8-docstrings (D) errors for tests
+    tests/*:D
+
+per-file-ignores =
+    # Allow unused imports in __init__.py
+    __init__.py:F401
+
+# McCabe complexity checker
+max-complexity = 10 
