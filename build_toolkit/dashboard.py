@@ -1,7 +1,7 @@
 """Dashboard generation module for build results visualization."""
 
 import os
-import subprocess
+import shlex
 from typing import List, Optional, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -495,6 +495,35 @@ def _generate_overview_section(builder: Builder) -> str:
     """Generate HTML for the overview section."""
     content = []
     
+    content.append('<h1>Build Overview</h1>')
+
+    # Add toolchain info block
+    content.append(f'''
+        <div class="code-block">
+            <div class="code-caption">
+                <span>Toolchain</span>
+            </div>
+            <table class="feature-tests" style="width: 100%; border-spacing: 0; padding: 0.25em;">
+                <tr>
+                    <th style="text-align: left; padding: 0.25em 1em;">Tool</th>
+                    <th style="text-align: left; padding: 0.25em 1em;">Command</th>
+                </tr>
+                <tr>
+                    <td style="padding: 0.25em 1em;">C Compiler</td>
+                    <td style="padding: 0.25em 1em;">{shlex.join(builder.toolchain.cc + builder.toolchain.cflags)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.25em 1em;">C++ Compiler</td>
+                    <td style="padding: 0.25em 1em;">{shlex.join(builder.toolchain.cxx + builder.toolchain.cxxflags)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.25em 1em;">Archiver</td>
+                    <td style="padding: 0.25em 1em;">{shlex.join(builder.toolchain.ar + builder.toolchain.arflags)}</td>
+                </tr>
+            </table>
+        </div>
+    ''')
+
     # Calculate stats for each phase
     total_features = len(builder.feature_tests)
     feature_time = sum(test.duration for test in builder.feature_tests if hasattr(test, 'duration'))
@@ -510,7 +539,6 @@ def _generate_overview_section(builder: Builder) -> str:
     
     total_time = feature_time + generation_time + compilation_time + archive_time
     
-    content.append('<h1>Build Overview</h1>')
     content.append('''
         <table class="stats">
             <tr>

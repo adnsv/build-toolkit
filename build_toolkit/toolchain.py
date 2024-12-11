@@ -10,14 +10,14 @@ class Toolchain:
                  os: str,
                  arch: str,
                  # C++ compiler settings
-                 cxx: str, 
+                 cxx: str | List[str],
                  cxxflags: List[str],
                  # C compiler settings
-                 cc: Optional[str] = None,
-                 cflags: Optional[List[str]] = None,
+                 cc: str | List[str],
+                 cflags: List[str],
                  # Library archiver
-                 ar: str = "ar",
-                 arflags: Optional[List[str]] = None,
+                 ar: str | List[str],
+                 arflags: List[str],
                  # Library naming
                  lib_prefix: str = "",
                  lib_extension: str = ".a",
@@ -40,20 +40,27 @@ class Toolchain:
         """
         self.os = os
         self.arch = arch
-        
-        # Compilers and flags
-        self.cxx = cxx
+                
+        self.cxx = cxx if isinstance(cxx, list) else [cxx]
         self.cxxflags = cxxflags
-        self.cc = cc if cc is not None else cxx  # Default C compiler to C++ compiler
-        self.cflags = cflags if cflags is not None else cxxflags  # Default C flags to C++ flags
+        self.cc = cc if isinstance(cc, list) else [cc]
+        self.cflags = cflags
         
         # Library archiver
-        self.ar = ar
-        self.arflags = arflags if arflags is not None else ["-rcs"]  # Default ar flags
+        self.ar = ar if isinstance(ar, list) else [ar]   
+        self.arflags = arflags
         
         # Library naming
         self.lib_prefix = lib_prefix
         self.lib_extension = lib_extension
+        
+        # Compilers and flags
+        if len(self.cxx) == 0:
+            raise ValueError("Missing C++ compiler")
+        if len(self.cc) == 0:
+            raise ValueError("Missing C compiler")
+        if len(self.ar) == 0:
+            raise ValueError("Missing AR archiver")
 
         # Compiler identification
-        self.compiler_id = compiler_id if compiler_id is not None else determine_compiler_id(self.cc, self.cxx)
+        self.compiler_id = compiler_id if compiler_id is not None else determine_compiler_id(self.cc[0], self.cxx[0])

@@ -19,7 +19,9 @@ def create_test_builder(root_dir: str) -> Builder:
         toolchain=Toolchain(
             os="linux",
             arch="x86_64",
-            cxx="g++",
+            cc=["gcc"], 
+            cxx=["g++"],
+            cflags=[],
             cxxflags=[],
             ar="ar",
             arflags=["-rcs"],
@@ -28,7 +30,7 @@ def create_test_builder(root_dir: str) -> Builder:
         gen_dir=os.path.join(build_dir, "gen"),
         obj_dir=os.path.join(build_dir, "obj"),
         lib_dir=os.path.join(build_dir, "lib"),
-        scratch_dir=os.path.join(build_dir, "scratch")
+        tmp_dir=os.path.join(build_dir, "tmp")
     )
 
 

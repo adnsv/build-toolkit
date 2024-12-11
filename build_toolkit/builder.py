@@ -3,9 +3,7 @@ Handles C++ compilation and static library creation with parallel builds.
 """
 
 import os
-import platform
 import subprocess
-import sys
 import time
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,11 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable, Set
 import importlib.util
+import shlex  # Add this import at the top with other imports
 
 from .target import Target, GeneratedFile
 from .toolchain import Toolchain
 from .utils import ensure_dir, normalize_path
-from .feature import CompilerFlagCheck, HeaderCheck, TypeCheck, FeatureTestTask
+from .feature import FeatureTestTask
 
 @dataclass
 class CommandResult:
@@ -35,9 +34,9 @@ class CompileCommand:
     """Represents a single source file compilation.
     Created by Builder for each source file in Target.
     Contains normalized paths and full command."""
-    directory: str  # Directory to run command in
-    command: str   # Full compilation command
-    source_file: str      # Source file path
+    directory: str      # Directory to run command in
+    command: List[str]  # Full compilation command as list of strings
+    source_file: str    # Source file path
     output_file: str    # Output object file path
     result: Optional[CommandResult] = None
 
@@ -45,7 +44,7 @@ class CompileCommand:
         """Convert to compile_commands.json format."""
         return {
             "directory": self.directory,
-            "command": self.command,
+            "command": shlex.join(self.command),  # Use shlex.join for proper escaping
             "file": self.source_file
         }
 
@@ -148,7 +147,7 @@ class ArchiveTask:
     Contains all information needed to create and track the archive."""
     
     output_file: str  # Path to output library file
-    command: str  # Full archive command
+    command: List[str]  # Full archive command as list
     compile_tasks: List[CompileTask]  # Tasks that contribute to this archive
     result: Optional[CommandResult] = None
 
@@ -454,13 +453,14 @@ class Builder:
             # Use all definitions (both public and private)
             define_flags = [f"-D{define}" for define in task.public_definitions + task.private_definitions]
             
-            cmd = [compiler] + flags + include_flags + define_flags + [
+            # Build command as list
+            cmd = compiler + flags + include_flags + define_flags + [
                 "-o", obj_path, src_path
             ]
             
             task.commands.append(CompileCommand(
                 directory=os.path.dirname(obj_path),
-                command=" ".join(cmd),
+                command=cmd,  # Store as list
                 source_file=src_path,
                 output_file=obj_path
             ))
@@ -497,13 +497,8 @@ class Builder:
             for task in compile_tasks:
                 obj_files.extend(task.obj_files)
                 
-            # Create archive command
-            command = " ".join([
-                self.toolchain.ar,
-                *self.toolchain.arflags,
-                lib_path,
-                *obj_files
-            ])
+            # Create archive command as list
+            command = self.toolchain.ar + self.toolchain.arflags + [lib_path] + obj_files
             
             # Create archive task
             archive = ArchiveTask(
@@ -515,59 +510,69 @@ class Builder:
             print(f"- {os.path.basename(lib_path)} ({len(compile_tasks)} targets)")
 
     def _execute_compile_tasks(self):
-        """Execute all compile tasks in parallel."""
+        """Execute all compile tasks in parallel and return True if all succeeded, False otherwise."""
+        # Gather all commands from compile tasks
         all_commands = []
         for task in self.compile_tasks:
             all_commands.extend(task.commands)
-
+        
+        # If there are no commands, nothing to do
         if not all_commands:
-            return
-
-        # Calculate padding widths
+            return True  # No failures if there is nothing to compile
+        
+        # Calculate formatting widths for printing
         total_commands = len(all_commands)
         counter_width = len(str(total_commands))
         max_filename_len = max(len(os.path.basename(cmd.source_file)) for cmd in all_commands)
         filename_width = min(max(max_filename_len + 2, 25), 40)
 
         print(f"\nCompiling {total_commands} files...")
-        
+
         n_failed = 0
         start_time = time.time()
+
+        # Map each future to its corresponding command for efficient lookup
+        future_to_cmd = {}
+        # You can specify max_workers if needed, e.g., ThreadPoolExecutor(max_workers=8)
         with ThreadPoolExecutor() as executor:
-            futures = []
             for cmd in all_commands:
                 future = executor.submit(self._execute_command, cmd)
-                futures.append((cmd, future))
-            
+                future_to_cmd[future] = cmd
+
             completed = 0
-            for future in as_completed([f for _, f in futures]):
+            for future in as_completed(future_to_cmd):
                 completed += 1
-                cmd = next(x for x in futures if x[1] == future)[0]
+                cmd = future_to_cmd[future]
+
                 try:
                     result = future.result()
                     cmd.result = result
-                    
-                    # Print status
-                    if result:
+
+                    # Print status if we have a result
+                    if result is not None:
                         status = "succeeded" if result.succeeded else "failed"
                         filename = os.path.basename(cmd.source_file)
-                        print(f"[{completed:{counter_width}d}/{total_commands}]  {filename:<{filename_width}} ... {status} ({result.duration:.1f}s)")
-                    
+                        print(f"[{completed:{counter_width}d}/{total_commands}]  "
+                            f"{filename:<{filename_width}} ... {status} ({result.duration:.1f}s)")
+
                     if not result.succeeded:
                         n_failed += 1
-                        
+
                 except Exception as e:
+                    # If there's an exception, mark this command as failed and log the error
                     print(f"Error executing {cmd.source_file}: {e}")
                     cmd.result = CommandResult(succeeded=False, error=str(e))
                     n_failed += 1
 
         self.total_compile_time = time.time() - start_time
-        
-        # Update task success status based on their commands
+
+        # Update each task's success state
         for task in self.compile_tasks:
             task.succeeded = all(cmd.result and cmd.result.succeeded for cmd in task.commands)
 
+        # Return True if no failures occurred, else False
         return n_failed == 0
+
 
     def _execute_command(self, cmd: CompileCommand) -> CommandResult:
         """Run single compilation command and collect output"""
@@ -577,15 +582,15 @@ class Builder:
         try:
             start_time = time.time()
             process = subprocess.run(
-                cmd.command,
-                shell=True,
+                cmd.command,  # Pass command list directly
+                shell=False,  # Set shell=False when using command list
                 cwd=cmd.directory,
-                capture_output=True,
-                text=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
             )
             result.duration = time.time() - start_time
-            result.stdout = process.stdout
-            result.stderr = process.stderr
+            result.stdout = process.stdout.decode('utf-8')
+            result.stderr = process.stderr.decode('utf-8')
             
             if process.returncode == 0:
                 result.succeeded = True
@@ -633,13 +638,12 @@ class Builder:
                 start_time = time.time()
                 process = subprocess.run(
                     archive.command,
-                    shell=True,
-                    capture_output=True,
-                    text=True
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE
                 )
                 result.duration = time.time() - start_time
-                result.stdout = process.stdout
-                result.stderr = process.stderr
+                result.stdout = process.stdout.decode('utf-8')
+                result.stderr = process.stderr.decode('utf-8')
                 result.succeeded = process.returncode == 0
                 archive.result = result
                 
@@ -865,13 +869,11 @@ class Builder:
                 base_flags = self.toolchain.cxxflags if test.language == "c++" else self.toolchain.cflags
                 
                 # Run test compilation
-                cmd = [compiler] + base_flags + flags + ["-c", test_file, "-o", obj_file]
+                cmd = compiler + base_flags + flags + ["-c", test_file, "-o", obj_file]                
                 result = subprocess.run(
                     cmd,
-                    capture_output=True,
-                    check=False,
-                    text=True,
-                    shell=True
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
                 )
                 
                 # Update test result

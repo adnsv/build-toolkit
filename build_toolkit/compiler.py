@@ -47,14 +47,10 @@ def determine_compiler_id(cc: str, cxx: str) -> str:
         return "msvc"
     
     # Check for Clang (excluding clang-cl which is handled above)
-    clang_names = {"clang"}
-    clangxx_names = {"clang++"}
+    clang_names = {"clang", "zig"}
+    clangxx_names = {"clang++", "zig"}
     if cc_base in clang_names or cxx_base in clangxx_names:
         return "clang"
-        
-    # Check for Zig cc/c++
-    if ("zig cc" in cc or "zig c++" in cxx):
-        return "clang"
-    
+            
     # Unknown compiler
     return "unknown"

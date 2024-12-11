@@ -14,9 +14,8 @@ def test_clang_variants():
     assert determine_compiler_id("clang", "clang++") == "clang"
     assert determine_compiler_id("/usr/bin/clang", "/usr/bin/clang++") == "clang"
     # Zig is identified as clang since it uses LLVM/Clang internally
-    assert determine_compiler_id("zig cc", "zig c++") == "clang"
-    assert determine_compiler_id("/usr/local/bin/zig cc", "/usr/local/bin/zig c++") == "clang"
-    assert determine_compiler_id("zig cc -target native", "zig c++ -target native") == "clang"
+    assert determine_compiler_id("zig", "zig") == "clang"
+    assert determine_compiler_id("/usr/local/bin/zig", "/usr/local/bin/zig") == "clang"
 
 def test_msvc_variants():
     """Test MSVC compiler identification.
@@ -35,4 +34,3 @@ def test_unknown_compilers():
     """Test unknown compiler identification."""
     assert determine_compiler_id("cc", "c++") == "unknown"
     assert determine_compiler_id("", "") == "unknown"
-    assert determine_compiler_id("zig", "zig") == "unknown"  # Just 'zig' without cc/c++ is unknown
